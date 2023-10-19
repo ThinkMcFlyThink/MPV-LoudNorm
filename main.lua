@@ -3,9 +3,7 @@ local mp = require('mp')
 local options = require('mp.options')
 
 local o = {
-	script_name = mp.get_script_name(), -- get the name of this script
 	script_dir = mp.get_script_directory(), -- get the dir of this script
-	
 	key_toggle = 'n',
 }
 options.read_options(o)
