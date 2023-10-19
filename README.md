@@ -5,9 +5,16 @@ Rather than simply using the typical `af=lavfi=[loudnorm=I=-16.0:TP=-1.5:LRA=11.
 
 Then based on the information in the txt file, a filter string is built and passed into MPV. Typical example `af=lavfi=[loudnorm=I=-16.0:TP=-1.5:LRA=11.0:measured_I=-19.5:measured_LRA=16.2:measured_TP=-1.1:measured_thresh=-30.6]`.
 
+## Installation
+
+In your MPV scripts directory, create a new folder named "real_loudnorm" and paste in the Python and LUA files.
+
+## Usage
+
 The HOTKEY to execute the script is 'n'.
 
-NOTES:
+## Notes
+
  - The vast majority of functionality comes from Python. The MPV lua script simply calls the python script and grabs the outputted string from the command line.
  - How long it takes to analyse depends on a few factors; runtime, channels, etc. Typically no more than 2mins.
  - Currently only tested on Windows 10.
