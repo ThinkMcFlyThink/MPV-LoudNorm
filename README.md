@@ -1,5 +1,5 @@
 # MPV-LoudNorm
-Automatic and non-destructive 2-pass loudnorm audio filter for the MPV player (https://mpv.io/).
+Automatic and non-destructive 2-pass loudnorm audio filter generator for the MPV player (https://mpv.io/).
 
 Rather than simply using the typical `af=lavfi=[loudnorm=I=-16.0:TP=-1.5:LRA=11.0]` filter found online in the mpv.conf, this script perfoms ebur128 and volumedetect to get the file's sound profile - making it more accurate. The results are saved as a txt file in the same directory as the file being played, therefore analysis does not need be re-run in the future.
 
