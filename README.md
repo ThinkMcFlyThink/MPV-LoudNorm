@@ -8,6 +8,8 @@ Then based on the information in the txt file, a filter string is built and pass
 ## Installation
 
 In your MPV scripts directory, create a new folder named "real_loudnorm" and paste in the Python and LUA files.
+Make sure Python is installed.
+Make sure FFMPEG is on the system path.
 
 ## Usage
 
