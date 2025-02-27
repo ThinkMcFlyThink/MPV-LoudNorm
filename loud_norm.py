@@ -1,10 +1,10 @@
+import json
+import subprocess
 import sys
 from pathlib import Path
-import subprocess
-import re
 
 # if filename has some funky characters (eg unicode emoji)
-sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding="utf-8")
 
 
 def strip_text(file_txt):
@@ -13,75 +13,58 @@ def strip_text(file_txt):
     # until native way to do this in FFMPEG is found, this is the ugly brute force method
     #
 
-    # string to search in file
-    with open(file_txt, 'r+') as fp:
-        # read all lines using readline()
-        lines = fp.readlines()
-        for row in lines:
-            # check if string present on a current line
-            word = 'Parsed_ebur128_0'
-
-            # find() method returns -1 if the value is not found,
-            # if found it returns index of the first occurrence of the substring
-            if row.find(word) != -1:
-                line_number = lines.index(row)
-                break
-
-        # truncate the file up to the desired line
-        fp.seek(0)
-        fp.truncate()
-        fp.writelines(lines[line_number:])
+    # strip all above and below { and }
+    output = file_txt.stderr.decode().split("{")[1].split("}")[0]
+    output = json.loads("{" + output + "}")
+    return output
 
 
-def gen_measured(find, file_txt):
+def save_json(data, folder):
     #
-    # Search the text file for required value
+    # save stripped output to json file
     #
-
-    with open(file_txt, 'r') as searchfile:
-        for line in searchfile:
-            # strip brackets, as the numbers inside intefere
-            line = re.sub(r'\[.*\]', '', line)
-            if find in line:
-                number = re.findall(r'[-+]?\d+(?:,\d+)?(?:\.\d+)?', line)[0]
-                break
-
-    return number
+    with open(folder / f"{file.stem}.json", "w") as f:
+        json.dump(data, f)
 
 
-def ffmpeg(file, file_txt):
+def load_json(data_file):
+    #
+    # if json file found, load back in the data
+    #
+    with open(data_file, "r") as file:
+        data = json.load(file)
+
+    return data
+
+
+def ffmpeg(file, folder):
     #
     # Build a FFMPEG string and execute it.
     #
-    
-    # -vn / -an / -sn / -dn options can be used to skip inclusion of video, audio, subtitle and data streams respectively
-    string = f'ffmpeg -hide_banner -nostats -i "{file}" -vn -sn -dn -af ebur128=framelog=verbose,volumedetect -f null - 2> "{file_txt}"'
 
-    # The 'shell=True' is needed for the '2>' part in string to not throw errors.
-    subprocess.call(string, shell=True)
-    strip_text(file_txt)
+    string = f'ffmpeg -i "{file}" -af loudnorm=print_format=json -map 0:a -f null NULL'
+    cmd = subprocess.run(string, stderr=subprocess.PIPE)
+
+    data = strip_text(cmd)
+    save_json(data, folder)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # parse input into folder and file
     file = Path(sys.argv[1])
     folder = file.parents[0]
-    file_txt = file.with_suffix('.txt')
+    df = file.with_suffix(".json")
 
     # check if the .txt file exists
-    if not file_txt.is_file():
-        ffmpeg(file, file_txt)
+    if not df.is_file():
+        ffmpeg(file, folder)
+    else:
+        df = load_json(df)
 
     # build mpv string
-    measured_I = gen_measured('I:', file_txt)
-    measured_LRA = gen_measured('LRA:', file_txt)
-    measured_TP = gen_measured('max_volume:', file_txt)
-    measured_thresh = gen_measured('Threshold:', file_txt)
-
-    loud_target = 'I=-16:TP=-1.5:LRA=11.0:'
-    loud_measured = f'measured_I={measured_I}:measured_LRA={measured_LRA}:measured_TP={measured_TP}:measured_thresh={measured_thresh}'
-    loundnorm = loud_target+loud_measured
-    filter = f'[loudnorm={loundnorm}]'
+    loud_target = "I=-24:TP=-1.0:LRA=7.0:"
+    loud_measured = f"measured_I={df['input_i']}:measured_LRA={df['input_lra']}:measured_TP={df['input_tp']}:measured_thresh={df['input_thresh']}:offset={df['target_offset']}"
+    loundnorm = f"[loudnorm={loud_target + loud_measured}]"
 
     # This is the key part. Print the assembled MPVB filter to terminal, which the MPV LUA script can access.
-    print(filter)
+    print(loundnorm)
