@@ -8,7 +8,7 @@ Then based on the information in the txt file, a filter string is built and pass
 ## Current Issues
 
  - When playing full-screen, after completion of analysis the player minimises.
- - Some audio still has dynamic range issues. Will likely try adding in a _dynaudnorm_ filter in additional to loudnorm.
+ - The first pass of FFMPEG's loudnorm filter is very, VERY, slow... (25-35x play speed)
 
 ## Installation
 
