@@ -62,7 +62,7 @@ if __name__ == "__main__":
         df = load_json(df)
 
     # build mpv string
-    loud_target = "I=-24:TP=-1.0:LRA=7.0:"
+    loud_target = f"I=-24:TP=-1.0:LRA={df['input_lra']}:"
     loud_measured = f"measured_I={df['input_i']}:measured_LRA={df['input_lra']}:measured_TP={df['input_tp']}:measured_thresh={df['input_thresh']}:offset={df['target_offset']}"
     loundnorm = f"[loudnorm={loud_target + loud_measured}]"
 
