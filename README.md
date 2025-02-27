@@ -23,6 +23,5 @@ The HOTKEY to execute the script is 'n'.
 ## Notes
 
  - The vast majority of functionality comes from Python. The MPV lua script simply calls the python script and grabs the outputted string from the command line.
- - How long ebur128 and volumedetect takes to analyse depends on a few factors; runtime, audio channels, etc. Typically no more than 1-2mins.
+ - How long loudnorm takes to analyse depends on a few factors; duration, audio channel count, etc.
  - Currently only tested on Windows 10.
- - Currently very clunky...
