@@ -43,6 +43,7 @@ def ffmpeg(file, folder):
 
     data = strip_text(cmd)
     save_json(data, folder)
+    return data
 
 
 if __name__ == "__main__":
@@ -53,7 +54,7 @@ if __name__ == "__main__":
 
     # check if the .txt file exists
     if not df.is_file():
-        ffmpeg(file, folder)
+        df = ffmpeg(file, folder)
     else:
         df = load_json(df)
 
