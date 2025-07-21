@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import json
 import subprocess
 import sys
@@ -39,7 +41,9 @@ def ffmpeg(file, folder):
     # Build a FFMPEG string and execute it.
     #
     string = f'ffmpeg -i "{file}" -af loudnorm=print_format=json -map 0:a -f null NULL'
-    cmd = subprocess.run(string, stderr=subprocess.PIPE)
+    # cmd = subprocess.Popen(string, stderr=subprocess.PIPE)
+    # cmd = subprocess.run('ls', stderr=subprocess.PIPE)
+    cmd = subprocess.run(string, stderr=subprocess.PIPE, shell=True)
 
     data = strip_text(cmd)
     save_json(data, folder)
