@@ -13,9 +13,20 @@ function run_python()
     -- Python spits out the filter and we grab it
 
     local path = mp.get_property("path")
-    local handle = io.popen('python "'..o.script_dir..'/loud_norm.py" "'..path..'"')
+    local pypath = 'python "'..o.script_dir..'/loud_norm.py" "'..path..'"'
+
+    -- Display message to show that LoudNorm is running
+    ov = mp.create_osd_overlay("ass-events")
+    ov.data = "{\\an5}{\\b1}{\\fs20}Running LoudNorm... Please be patient."
+    ov:update()
+
+    -- Call Python to run FFMPEG & grab the printed message
+    local handle = io.popen('python3 "'..o.script_dir..'/loud_norm.py" "'..path..'"')
     local result = handle:read("*all")
     handle:close()
+
+    -- Clear loading message
+    ov:remove()
 
     -- tell mpv to add/toggle the calculated loudnorm filter
     mp.command('no-osd af toggle lavfi='..result)
