@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+import platform
 from pathlib import Path
 
 # if filename has some funky characters (eg unicode emoji)
@@ -43,7 +44,14 @@ def ffmpeg(file, folder):
     string = f'ffmpeg -i "{file}" -af loudnorm=print_format=json -map 0:a -f null NULL'
     # cmd = subprocess.Popen(string, stderr=subprocess.PIPE)
     # cmd = subprocess.run('ls', stderr=subprocess.PIPE)
-    cmd = subprocess.run(string, stderr=subprocess.PIPE, shell=True)
+
+    # cross-platform fix
+    if platform.system() == 'Windows':
+        shell = False
+    else:
+        shell = True
+    
+    cmd = subprocess.run(string, stderr=subprocess.PIPE, shell=shell)
 
     data = strip_text(cmd)
     save_json(data, folder)
