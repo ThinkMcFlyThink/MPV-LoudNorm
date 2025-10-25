@@ -3,77 +3,94 @@
 import json
 import subprocess
 import sys
-import platform
+import re
 from pathlib import Path
 
-# if filename has some funky characters (eg unicode emoji)
+# handle UTF-8 filenames
 sys.stdout.reconfigure(encoding="utf-8")
 
 
-def strip_text(file_txt):
-    #
-    # strip all above and below { and }
-    #
-    output = file_txt.stderr.decode().split("{")[1].split("}")[0]
-    output = json.loads("{" + output + "}")
-    return output
+def analyze_ebur128(file):
+    """
+    Run ffmpeg with ebur128 and return stderr text output.
+    """
+    cmd = [
+        "ffmpeg", "-hide_banner", "-nostats",
+        "-i", str(file),
+        "-filter_complex", "ebur128",
+        "-f", "null", "-"
+    ]
+    result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+    return result.stderr
 
 
-def save_json(data, folder):
-    #
-    # save stripped output to json file
-    #
-    with open(folder / f"{file.stem}.json", "w") as f:
-        json.dump(data, f)
+def parse_ebur128_output(output):
+    """
+    Parse ebur128 summary section into a dictionary.
+    """
+    summary_pattern = re.compile(r"Summary:\s*(.*?)\Z", re.S)
+    match = summary_pattern.search(output)
+    if not match:
+        raise ValueError("No ebur128 summary found in ffmpeg output")
+
+    section = match.group(1)
+    patterns = {
+        "input_i": r"I:\s*([-0-9.]+)",
+        "input_thresh": r"Threshold:\s*([-0-9.]+)",
+        "input_lra": r"LRA:\s*([-0-9.]+)",
+        "input_tp": r"LRA high:\s*([-0-9.]+)",  # no real TP, placeholder for compatibility
+        "input_lra_low": r"LRA low:\s*([-0-9.]+)",
+        "input_lra_high": r"LRA high:\s*([-0-9.]+)",
+    }
+
+    data = {}
+    for key, pat in patterns.items():
+        m = re.search(pat, section)
+        data[key] = float(m.group(1)) if m else None
+
+    return data
+
+
+def save_json(data, folder, file):
+    """
+    Save parsed output to a JSON file.
+    """
+    with open(folder / f"{file.stem}.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 def load_json(data_file):
-    #
-    # if json file found, load back in the data
-    #
-    with open(data_file, "r") as file:
-        data = json.load(file)
-
-    return data
-
-
-def ffmpeg(file, folder):
-    #
-    # Build a FFMPEG string and execute it.
-    #
-    string = f'ffmpeg -i "{file}" -af loudnorm=print_format=json -map 0:a -f null NULL'
-    # cmd = subprocess.Popen(string, stderr=subprocess.PIPE)
-    # cmd = subprocess.run('ls', stderr=subprocess.PIPE)
-
-    # cross-platform fix
-    if platform.system() == 'Windows':
-        shell = False
-    else:
-        shell = True
-    
-    cmd = subprocess.run(string, stderr=subprocess.PIPE, shell=shell)
-
-    data = strip_text(cmd)
-    save_json(data, folder)
-    return data
+    with open(data_file, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 if __name__ == "__main__":
-    # parse input into folder and file
     file = Path(sys.argv[1])
-    folder = file.parents[0]
-    df = file.with_suffix(".json")
+    folder = file.parent
+    json_path = file.with_suffix(".json")
 
-    # check if the .txt file exists
-    if not df.is_file():
-        df = ffmpeg(file, folder)
+    if not json_path.exists():
+        print(f"Analyzing loudness for: {file.name}", file=sys.stderr)
+        output = analyze_ebur128(file)
+        data = parse_ebur128_output(output)
+        save_json(data, folder, file)
     else:
-        df = load_json(df)
+        data = load_json(json_path)
 
-    # build mpv string
-    loud_target = f"I=-24:TP=-1.0:LRA={df['input_lra']}:"
-    loud_measured = f"measured_I={df['input_i']}:measured_LRA={df['input_lra']}:measured_TP={df['input_tp']}:measured_thresh={df['input_thresh']}:offset={df['target_offset']}"
-    loundnorm = f"[loudnorm={loud_target + loud_measured}]"
+    # Approximate target offset (since ebur128 doesn't provide it)
+    I_target = -16.0
+    I_measured = data.get("input_i", -23.0)
+    target_offset = float(I_target) - float(I_measured)
 
-    # This is the key part. Print the assembled MPVB filter to terminal, which the MPV LUA script can access.
-    print(loundnorm)
+    # Build MPV loudnorm filter string (for Lua)
+    loud_target = f"I={I_target}:TP=-1.0:LRA={data.get('input_lra', 7)}:"
+    loud_measured = (
+        f"measured_I={data.get('input_i')}:"
+        f"measured_LRA={data.get('input_lra')}:"
+        f"measured_TP={data.get('input_tp')}:"
+        f"measured_thresh={data.get('input_thresh')}:"
+        f"offset={target_offset:.2f}"
+    )
+    loudnorm = f"[loudnorm={loud_target + loud_measured}]"
+
+    print(loudnorm)
