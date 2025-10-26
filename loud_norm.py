@@ -17,8 +17,10 @@ def analyze_ebur128(file):
     cmd = [
         "ffmpeg", "-hide_banner", "-nostats",
         "-i", str(file),
-        "-filter_complex", "ebur128",
-        "-f", "null", "-"
+        "-vn", "-sn", "-dn", # disable video, subtitles, data
+        "-map", "0:a", # select only audio
+        "-filter_complex", "[0:a]ebur128=peak=sample", # use filter_complex
+        "-f", "null", "-" # discard output, read logs from stderr
     ]
     result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
     return result.stderr
@@ -38,7 +40,7 @@ def parse_ebur128_output(output):
         "input_i": r"I:\s*([-0-9.]+)",
         "input_thresh": r"Threshold:\s*([-0-9.]+)",
         "input_lra": r"LRA:\s*([-0-9.]+)",
-        "input_tp": r"LRA high:\s*([-0-9.]+)",  # no real TP, placeholder for compatibility
+        "input_tp": r"Peak:\s*([-0-9.]+)", # no real TP, placeholder for compatibility
         "input_lra_low": r"LRA low:\s*([-0-9.]+)",
         "input_lra_high": r"LRA high:\s*([-0-9.]+)",
     }
@@ -53,13 +55,16 @@ def parse_ebur128_output(output):
 
 def save_json(data, folder, file):
     """
-    Save parsed output to a JSON file.
+    Save parsed output to a JSON file
     """
     with open(folder / f"{file.stem}.json", "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
 def load_json(data_file):
+    """
+    Load pre-calculated JSON file
+    """
     with open(data_file, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -67,6 +72,7 @@ def load_json(data_file):
 if __name__ == "__main__":
     file = Path(sys.argv[1])
     folder = file.parent
+    # currently make assumption that the json file is in the same directory as the file
     json_path = file.with_suffix(".json")
 
     if not json_path.exists():
@@ -77,13 +83,26 @@ if __name__ == "__main__":
     else:
         data = load_json(json_path)
 
-    # Approximate target offset (since ebur128 doesn't provide it)
-    I_target = -16.0
-    I_measured = data.get("input_i", -23.0)
-    target_offset = float(I_target) - float(I_measured)
+    # approximate target offset (since ebur128 doesn't provide it)
+    I_target = -16.0 # desired loudness target
+    TP_limit = -1.0 # don't exceed this true peak
+    I_measured = data.get('input_i', -23.0)
+    TP_measured = data.get('input_tp', -3.0)
 
-    # Build MPV loudnorm filter string (for Lua)
-    loud_target = f"I={I_target}:TP=-1.0:LRA={data.get('input_lra', 7)}:"
+    # compute safe offset
+    gain_LU = I_target - I_measured
+    gain_TP = TP_limit - TP_measured
+    safe_gain = min(gain_LU, gain_TP)
+
+    # approximate target offset as static safe gain
+    target_offset = safe_gain
+
+    # build MPV loudnorm filter string (for Lua)
+    loud_target = (
+        f"I={I_target}:"
+        f"TP={TP_limit}:"
+        f"LRA={data.get('input_lra', 7)}:"
+    )
     loud_measured = (
         f"measured_I={data.get('input_i')}:"
         f"measured_LRA={data.get('input_lra')}:"
@@ -93,4 +112,5 @@ if __name__ == "__main__":
     )
     loudnorm = f"[loudnorm={loud_target + loud_measured}]"
 
+    # print loudnorm to terminal for lua to grab
     print(loudnorm)
